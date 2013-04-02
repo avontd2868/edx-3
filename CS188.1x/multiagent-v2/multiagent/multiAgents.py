@@ -406,20 +406,22 @@ def betterEvaluationFunction(currentGameState):
         if (x + y) == 0:
             distanceToNearestGhost.append(0)
         else:
-            distanceToNearestGhost.append(-1.0 / (x + y))
+            distance = abs(ghostCoord[0] - pacmanPos[0]) + abs(ghostCoord[1] - pacmanPos[1])
+            distanceToNearestGhost.append(-1.0 / distance)
 
     # Gather data about all of the remaining food
     for food in foodList:
         x = abs(food[0] - pacmanPos[0])
         y = abs(food[1] - pacmanPos[1])
-        distanceToFood.append(-1 * (x + y))
+        distance = abs(food[0] - pacmanPos[0]) + abs(food[1] - pacmanPos[1])
+        distanceToFood.append(1.0 / distance)
         
     # No food left?
     if not distanceToFood:
         distanceToFood.append(0)
 
-    return currentGameState.getScore() - 1000 * numOfScaredGhosts
-    # return max(distanceToFood) + min(distanceToNearestGhost) + currentGameState.getScore() + 100 * len(capsuleList) - len(ghostStates) + 1000 * numOfScaredGhosts
+    # return max(distanceToFood) + min(distanceToNearestGhost) + currentGameState.getScore() + 100 * len(capsuleList) + 99999999 * numOfScaredGhosts - 20 * len(ghostStates)
+    return (5 * max(distanceToFood)) + (5 * min(distanceToNearestGhost)) + (1 * currentGameState.getScore()) - (20 * len(capsuleList)) + (50 * (len(ghostStates) + numOfScaredGhosts))
 
 # Abbreviation
 better = betterEvaluationFunction
@@ -441,35 +443,37 @@ class ContestAgent(MultiAgentSearchAgent):
         
         curDepth = 0
         currentAgentIndex = 0
+        # self.depth is 2 by default
+        self.depth = 2
         val = self.value(gameState, currentAgentIndex, curDepth)
-
         return val[0]
 
-    # Retruns the value value of actions given a game state and tree depth
     def value(self, gameState, currentAgentIndex, curDepth): 
         if currentAgentIndex >= gameState.getNumAgents():
             currentAgentIndex = 0
             curDepth += 1
 
         if curDepth == self.depth:
-            return betterEvaluationFunction(gameState)
-            # return self.evaluationFunction(gameState)
+            return self.myEvaluationFunction(gameState)
 
-        # If the current agent is Pacman, maximize. If not, minimize
         if currentAgentIndex == self.pacmanIndex:
             return self.maxValue(gameState, currentAgentIndex, curDepth)
         else:
-            return self.minValue(gameState, currentAgentIndex, curDepth)
-    
-    # Returns the minimum action value for a given agent
-    def minValue(self, gameState, currentAgentIndex, curDepth):
-        value = ("unknown", 999999999)
+            return self.expectimaxValue(gameState, currentAgentIndex, curDepth)
         
-        if not gameState.getLegalActions(currentAgentIndex):
-            return betterEvaluationFunction(gameState)
-            # return self.evaluationFunction(gameState)
-
-        for action in gameState.getLegalActions(currentAgentIndex):
+    def expectimaxValue(self, gameState, currentAgentIndex, curDepth):
+        value = ["unknown", 0]
+        
+        legalActions = gameState.getLegalActions(currentAgentIndex)
+        
+        if not legalActions:
+            return self.myEvaluationFunction(gameState)
+        
+        # Used to determine what value to multiply our evaluation function values by
+        # We should utilize the reciprocal of the number of child nodes here since we want an average
+        probFactor = 1.0 / len(legalActions)
+        
+        for action in legalActions:
             if action == "Stop":
                 continue
             
@@ -477,21 +481,21 @@ class ContestAgent(MultiAgentSearchAgent):
             if type(retVal) is tuple:
                 retVal = retVal[1] 
 
-            vNew = min(value[1], retVal)
+            # Calculate the probability
+            value[1] += retVal * probFactor
+            value[0] = action
 
-            if vNew is not value[1]:
-                value = (action, vNew) 
+        return tuple(value)
 
-        return value
-    # Returns the maximum action value for a given agent
     def maxValue(self, gameState, currentAgentIndex, curDepth):
-        value = ("unknown", -999999999)
+        value = ("unknown", -1 * 999999999)
         
-        if not gameState.getLegalActions(currentAgentIndex):
-            return betterEvaluationFunction(gameState)
-            # return self.evaluationFunction(gameState)
+        legalActions = gameState.getLegalActions(currentAgentIndex)
+        
+        if not legalActions:
+            return self.myEvaluationFunction(gameState)
 
-        for action in gameState.getLegalActions(currentAgentIndex):
+        for action in legalActions:
             if action == "Stop":
                 continue
             
@@ -505,3 +509,49 @@ class ContestAgent(MultiAgentSearchAgent):
                 value = (action, vNew) 
         
         return value
+        
+        
+    def myEvaluationFunction(self, currentGameState):
+        # What is important to determine the score of state?
+        # We'll go with the following:
+        distanceToFood = []
+        distanceToNearestGhost = []
+        distanceToCapsules = []
+        numOfScaredGhosts = 0
+            
+        foodList = currentGameState.getFood().asList()
+        ghostStates = currentGameState.getGhostStates()
+        capsuleList = currentGameState.getCapsules()
+        pacmanPos = list(currentGameState.getPacmanPosition())
+
+        # Gather data about the ghosts
+        for ghostState in ghostStates:
+            if ghostState.scaredTimer > 0:
+                numOfScaredGhosts += 1
+                distanceToNearestGhost.append(0)
+                continue
+
+            # Calculate the Manhattan Distance to this ghost
+            ghostCoord = ghostState.getPosition()
+            x = abs(ghostCoord[0] - pacmanPos[0])
+            y = abs(ghostCoord[1] - pacmanPos[1])
+            distance = abs(ghostCoord[0] - pacmanPos[0]) + abs(ghostCoord[1] - pacmanPos[1])
+            
+            if (x + y) == 0:
+                distanceToNearestGhost.append(0)
+            else:
+                distanceToNearestGhost.append(-1.0 / distance)
+
+        # Gather data about all of the remaining food
+        for food in foodList:
+            x = abs(food[0] - pacmanPos[0])
+            y = abs(food[1] - pacmanPos[1])
+            distance = abs(food[0] - pacmanPos[0]) + abs(food[1] - pacmanPos[1])
+            distanceToFood.append(1.0 / distance)
+            
+        # No food left?
+        if not distanceToFood:
+            distanceToFood.append(0)
+
+        # return (5 * max(distanceToFood)) + (50 * min(distanceToNearestGhost)) + (10 * currentGameState.getScore()) - (20 * len(capsuleList)) + (100 * (len(ghostStates) + numOfScaredGhosts))
+        return (5 * max(distanceToFood)) + (50 * min(distanceToNearestGhost)) + (10 * currentGameState.getScore()) - (20 * len(capsuleList)) + (100 * (len(ghostStates) + numOfScaredGhosts))
