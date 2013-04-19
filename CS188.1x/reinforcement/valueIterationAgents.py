@@ -39,8 +39,6 @@ class ValueIterationAgent(ValueEstimationAgent):
         self.iterations = iterations
         self.values = util.Counter() # A Counter is a dict with default 0
 
-        # Write value iteration code here
-
         for i in range(0, iterations):
             newValues = util.Counter()
             for state in self.mdp.getStates():
@@ -49,7 +47,6 @@ class ValueIterationAgent(ValueEstimationAgent):
                     continue
 
                 maxActionValue = -999999999
-                maxAction = None
                 possibleActions = self.mdp.getPossibleActions(state)
                 if not possibleActions:
                     newValues[state] = 0
@@ -57,9 +54,7 @@ class ValueIterationAgent(ValueEstimationAgent):
                 for action in possibleActions:
                     actionSumSPrime = self.getQValue(state, action)
 
-                    #Find the maximum action
                     if maxActionValue < actionSumSPrime:
-                        maxAction = action
                         maxActionValue = actionSumSPrime
 
                 v_kPlus1 = maxActionValue
